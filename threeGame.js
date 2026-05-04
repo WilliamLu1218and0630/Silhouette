@@ -947,6 +947,7 @@ export function initGame() {
       tile.dataset.level = String(idx);
       tile.textContent   = String(idx + 1);
       tile.addEventListener('mouseenter', () => moveHoverTo(tile));
+      tile.addEventListener('pointerenter', () => moveHoverTo(tile));
       tile.addEventListener('click', () => {
         grid.querySelectorAll('.level-tile.selected').forEach(t => t.classList.remove('selected'));
         tile.classList.add('selected');
@@ -966,6 +967,23 @@ export function initGame() {
     }
     if (!grid.dataset.hoverBound) {
       grid.addEventListener('mouseleave', () => {
+        const r = grid.querySelector('#level-hover-rod');
+        if (r && !r.classList.contains('locked')) r.classList.remove('visible');
+      });
+      // Touch / pen support: track the tile under the finger as it moves.
+      // pointerenter on each tile only fires when a fresh pointer enters,
+      // not when an active touch slides between tiles, so we resolve via
+      // elementFromPoint on every pointermove.
+      const trackPointer = (e) => {
+        const r = grid.querySelector('#level-hover-rod');
+        if (!r || r.classList.contains('locked')) return;
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const tile = el && el.closest && el.closest('.level-tile');
+        if (tile && grid.contains(tile)) moveHoverTo(tile);
+      };
+      grid.addEventListener('pointermove', trackPointer);
+      grid.addEventListener('pointerdown', trackPointer);
+      grid.addEventListener('pointerleave', () => {
         const r = grid.querySelector('#level-hover-rod');
         if (r && !r.classList.contains('locked')) r.classList.remove('visible');
       });

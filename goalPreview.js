@@ -1,7 +1,29 @@
 export function drawGoalPreview(canvas, paths) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  const S   = canvas.width || 108;
+
+  // ── HiDPI / oversampling ──────────────────────────────────────────────
+  // The preview is scaled up to 1.6× on hover (see #goal-canvas:hover in
+  // index.html), so we need the backing buffer to be denser than 1:1 with
+  // its CSS size. We multiply by devicePixelRatio AND a quality factor so
+  // the zoomed view stays crisp on both standard and retina displays.
+  const cssSize = canvas.clientWidth
+               || parseInt(canvas.style.width, 10)
+               || canvas.getAttribute('width')
+               || 108;
+  const dpr   = window.devicePixelRatio || 1;
+  const SCALE = Math.min(4, Math.max(2, dpr * 2));   // 2..4× oversample
+  const buf   = Math.round(cssSize * SCALE);
+  if (canvas.width !== buf) {
+    canvas.width  = buf;
+    canvas.height = buf;
+    canvas.style.width  = cssSize + 'px';
+    canvas.style.height = cssSize + 'px';
+  }
+
+  // Draw in logical CSS pixels — the transform handles the upscale.
+  const S = cssSize;
+  ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
 
   ctx.clearRect(0, 0, S, S);
   ctx.fillStyle = '#fff';

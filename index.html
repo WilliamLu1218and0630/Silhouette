@@ -4,6 +4,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Silhouette</title>
+<meta name="description" content="Silhouette — a minimalist 3D puzzle. Rotate the rods so their projection matches the goal silhouette.">
+
+<!-- Open Graph (Facebook, LINE, Discord, etc.) -->
+<meta property="og:title" content="Silhouette">
+<meta property="og:description" content="A minimalist 3D puzzle. Rotate the rods so their projection matches the goal silhouette.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Silhouette title screen">
+
+<!-- Twitter / X -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Silhouette">
+<meta name="twitter:description" content="A minimalist 3D puzzle. Rotate the rods so their projection matches the goal silhouette.">
+<meta name="twitter:image" content="preview.png">
+
+<!-- Favicon (uses the same image; replace with a dedicated icon if you have one) -->
+<link rel="icon" type="image/png" href="preview.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Nunito:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -350,10 +369,12 @@ background-clip:border-box;
 body.mode-game #level-grid {
 pointer-events: none !important;
 }
+#level-grid{touch-action:none;}
 .level-tile{
 aspect-ratio:1/1;
 width:100%;
 position:relative;
+touch-action:none;
 display:flex;
 align-items:center;
 justify-content:center;
@@ -586,9 +607,9 @@ min-width:260px;
   .overlay-title{font-size:1.8rem;}
   #back-game,#back-levels{top:0.7rem;left:0.7rem;}
   #help-btn{top:0.7rem;right:0.9rem;}
-  #reset-btn{top:3rem;left:0.7rem;}
-  #undo-btn{top:5.6rem;left:0.7rem;}
-  #reset-view-btn{top:8.2rem;left:0.7rem;}
+  #reset-btn      {top:3.6rem;left:0.7rem;}
+  #undo-btn       {top:6.5rem;left:0.7rem;}
+  #reset-view-btn {top:9.4rem;left:0.7rem;}
   #settings-btn{bottom:1rem;right:0.9rem;}
   #settings-panel{bottom:3.2rem;right:0.9rem;}
   #help-popup{
@@ -605,15 +626,17 @@ min-width:260px;
   .level-tile{font-size:0.95rem;}
   #start-btn{font-size:2.8rem;}
   .btn{padding:0.6rem 1.6rem;}
-  /* Bigger tap targets for icon buttons */
-  #back-game,#back-levels,#reset-btn,#help-btn,#settings-btn{
+  /* Bigger tap targets for icon buttons — keep all 4 left-rail buttons identical */
+  #back-game,#back-levels,#reset-btn,#undo-btn,#reset-view-btn,#help-btn,#settings-btn{
     width:2.4rem;height:2.4rem;font-size:1.1rem;
   }
 }
 @media (max-height: 560px) {
   #goal-wrap{top:2.6rem;}
   #goal-canvas{width:108px;height:108px;}
-  #reset-btn{top:2.8rem;}
+  #reset-btn      {top:3.4rem;}
+  #undo-btn       {top:6.1rem;}
+  #reset-view-btn {top:8.8rem;}
 }
 </style>
 </head>
