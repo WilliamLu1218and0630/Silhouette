@@ -47,6 +47,22 @@ user-select:none;
 -webkit-tap-highlight-color:transparent;
 -webkit-touch-callout:none;
 }
+
+/* Cloak everything until the game is ready, to avoid HUD/debug FOUC */
+body.loading > *:not(#app-loader){visibility:hidden !important;}
+#app-loader{
+position:fixed;inset:0;
+background:var(--bg);
+display:flex;align-items:center;justify-content:center;
+z-index:9999;
+font-size:0.7rem;letter-spacing:0.2em;color:var(--muted);
+text-transform:uppercase;
+transition:opacity 0.35s cubic-bezier(0.4,0,0.2,1);
+}
+body:not(.loading) #app-loader{
+opacity:0;
+pointer-events:none;
+}
 button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
 #hud{
 position:absolute;top:0;left:0;right:0;
@@ -592,7 +608,8 @@ min-width:260px;
 }
 </style>
 </head>
-<body>
+<body class="loading">
+<div id="app-loader">Loading…</div>
 <button class="btn" id="back-game">&lt;</button>
 <button class="btn" id="back-levels">&lt;</button>
 <button id="reset-btn" title="Reset level">&#8635;</button>
@@ -922,6 +939,27 @@ min-width:260px;
   });
 
   updateLang();
+
+  // ── Reveal UI once main.js has booted (i.e. body got a mode-* class) ──
+  function reveal() {
+    if (!document.body.classList.contains('loading')) return;
+    requestAnimationFrame(function () {
+      document.body.classList.remove('loading');
+    });
+  }
+  if (/\bmode-(home|levels|game)\b/.test(document.body.className)) {
+    reveal();
+  } else {
+    var mo = new MutationObserver(function () {
+      if (/\bmode-(home|levels|game)\b/.test(document.body.className)) {
+        mo.disconnect();
+        reveal();
+      }
+    });
+    mo.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    // Safety fallback so the page never stays cloaked if main.js fails.
+    setTimeout(function () { mo.disconnect(); reveal(); }, 2500);
+  }
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
