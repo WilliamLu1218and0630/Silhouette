@@ -262,8 +262,8 @@ body.mode-levels #screen-home{transition:opacity 1s cubic-bezier(0.4,0,0.2,1) 0.
 #screen-levels .overlay-title{opacity:0;transition:opacity 1s;}
 body.mode-levels #screen-levels .overlay-title{opacity:1;transition:opacity 1s 3s;}
 #screen-levels .page-arrow{opacity:0;}
-body.mode-levels #screen-levels .page-arrow{opacity:1;transition:opacity 1s 3s;}
-body.mode-levels #screen-levels .page-arrow:disabled{opacity:0.18;transition:opacity 1s 3s;}
+body.mode-levels #screen-levels .page-arrow{opacity:1;transition:opacity 0.25s;}
+body.mode-levels #screen-levels .page-arrow:disabled{opacity:0.18;transition:opacity 0.25s;}
 body.going-to-game #screen-levels .overlay-title,
 body.going-to-game #screen-levels .page-arrow,
 body.going-to-game #back-levels,
@@ -311,8 +311,9 @@ transition:opacity 1s cubic-bezier(0.4,0,0.2,1) 0.5s;
 text-align:center;
 }
 #home-progress{
+font-family:'Inter','Taipei Sans TC Beta',system-ui,sans-serif;
 font-size:0.75rem;
-letter-spacing:0.18em;
+letter-spacing:0.08em;
 color:var(--muted);
 font-variant-numeric:tabular-nums;
 }
@@ -334,7 +335,7 @@ display:inline-flex;align-items:center;justify-content:center;
 padding:0;
 flex-shrink:0;
 position:relative;
-transition:opacity 1s;
+transition:opacity 0.25s;
 }
 .page-arrow::after{
 position:absolute;inset:0;
@@ -403,7 +404,7 @@ body.page-swapping #level-grid .level-tile,
 body.page-swapping .page-arrow,
 body.page-swap-cooldown #level-grid .level-tile{pointer-events:none !important;}
 .level-tile.entering-right,
-.level-tile.entering-left{animation:tile-enter-fade 0.35s cubic-bezier(0.4,0,0.2,1);pointer-events:none;}
+.level-tile.entering-left{animation:tile-enter-fade 0.35s cubic-bezier(0.4,0,0.2,1) backwards;pointer-events:none;}
 .level-tile.leaving-right,
 .level-tile.leaving-left{opacity:0;pointer-events:none;}
 @keyframes tile-enter-fade{from{opacity:0;}}
@@ -636,6 +637,13 @@ min-width:260px;
     width:2.4rem;height:2.4rem;font-size:1.1rem;
   }
 }
+/* Block interaction with buttons while interface is animating between modes. */
+body.mode-transitioning button,
+body.mode-transitioning .level-tile,
+body.mode-transitioning .page-arrow,
+body.mode-transitioning #goal-canvas{
+pointer-events:none !important;
+}
 @media (max-height: 560px) {
   #goal-wrap{top:2.6rem;}
   #goal-canvas{width:108px;height:108px;}
@@ -649,8 +657,8 @@ min-width:260px;
 <div id="app-loader" aria-label="Loading"></div>
 <button class="btn" id="back-game">&lt;</button>
 <button class="btn" id="back-levels">&lt;</button>
-<button id="reset-btn" title="Reset level">&#8635;</button>
-<button id="undo-btn" title="Undo">&#8630;</button>
+<button id="reset-btn" title="Reset level"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12 a8 8 0 1 0 2.5 -5.8"/><polyline points="4 4 4 8 8 8"/></svg></button>
+<button id="undo-btn" title="Undo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 L4 9 L9 4"/><path d="M4 9 h9 a7 7 0 0 1 0 14 h-3"/></svg></button>
 <button id="reset-view-btn" title="Reset view"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.2"/><path d="M16.4 14.4l3 3M16.4 14.4l-1.2 1.2M16.4 14.4l1.2-1.2"/></svg></button>
 <button id="help-btn">?</button>
 <div id="help-popup">
@@ -666,8 +674,8 @@ min-width:260px;
 <div id="screen-home" class="screen">
 <div class="overlay-title">Silhouette</div>
 <div id="home-progress" class="overlay-sub"></div>
-<button class="btn" id="start-btn">&#9655;</button>
-<button id="settings-btn">&#9881;</button>
+<button class="btn" id="start-btn"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" stroke="none" aria-hidden="true"><path d="M7 4 L20 12 L7 20 Z"/></svg></button>
+<button id="settings-btn" title="Settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
 <div id="settings-panel">
   <div class="audio-row" hidden>
     <button class="icon-btn" id="music-btn" aria-label="Music"></button>
@@ -685,11 +693,11 @@ min-width:260px;
 <div id="screen-levels" class="screen">
 <div class="overlay-title">Silhouette</div>
 <div class="levels-row">
-<button class="page-arrow" id="prev-page">&#9665;</button>
+<button class="page-arrow" id="prev-page" aria-label="Previous"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none" aria-hidden="true"><path d="M16 4 L6 12 L16 20 Z"/></svg></button>
 <div class="level-grid-wrap">
 <div id="level-grid" aria-label="Level selection"><div id="level-hover-rod" aria-hidden="true"></div></div>
 </div>
-<button class="page-arrow" id="next-page">&#9655;</button>
+<button class="page-arrow" id="next-page" aria-label="Next"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none" aria-hidden="true"><path d="M8 4 L18 12 L8 20 Z"/></svg></button>
 </div>
 </div>
 
@@ -773,9 +781,14 @@ min-width:260px;
     vibrateOff:'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="4" width="6" height="16" rx="1.2"/><line x1="12" y1="17.5" x2="12" y2="17.5" stroke-width="2.2"/><line x1="3.5" y1="3.5" x2="20.5" y2="20.5" stroke-width="2.2"/></svg>'
   };
 
+  var ICO_PLAY  = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" stroke="none" aria-hidden="true"><path d="M7 4 L20 12 L7 20 Z"/></svg>';
+  var ICO_RESET = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px"><path d="M4 12 a8 8 0 1 0 2.5 -5.8"/><polyline points="4 4 4 8 8 8"/></svg>';
+  var ICO_UNDO  = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px"><path d="M9 14 L4 9 L9 4"/><path d="M4 9 h9 a7 7 0 0 1 0 14 h-3"/></svg>';
+  var ICO_VIEW  = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.2"/></svg>';
+
   var S = {
     zh: {
-      start:        '&#9655;',
+      start:        ICO_PLAY,
       resetProgress:'重置進度',
       langBtn:      '<span class="lang-opt">英</span>/<span class="lang-opt lang-active">中</span>',
       credits:      '關於',
@@ -794,10 +807,10 @@ min-width:260px;
       playAgain:    '再玩一次',
       levelPrefix:  '第 ',
       levelSuffix:  ' 關',
-      helpHTML:     '1. 拖曳線條以移動<br>2. 拖曳背景以旋轉視角<br>3. 雙指 / 滾輪縮放<br>4. 找到正確角度以通關<br><span style="color:var(--muted)">&#8635; 重置關卡 &nbsp;&#183;&nbsp; &#9678; 重置視角 &nbsp;&#183;&nbsp; &#8630; 復原 &nbsp;&#183;&nbsp; ` 偵錯</span>',
+      helpHTML:     '1. 拖曳線條以移動<br>2. 拖曳背景以旋轉視角<br>3. 雙指 / 滾輪縮放<br>4. 找到正確角度以通關<br><span style="color:var(--muted)">' + ICO_RESET + ' 重置關卡 &nbsp;&middot;&nbsp; ' + ICO_VIEW + ' 重置視角 &nbsp;&middot;&nbsp; ' + ICO_UNDO + ' 復原</span>',
     },
     en: {
-      start:        '&#9655;',
+      start:        ICO_PLAY,
       resetProgress:'Reset Progress',
       langBtn:      '<span class="lang-opt lang-active">EN</span>/<span class="lang-opt">ZT</span>',
       credits:      'Credits',
@@ -816,7 +829,7 @@ min-width:260px;
       playAgain:    'Play Again',
       levelPrefix:  'Level ',
       levelSuffix:  '',
-      helpHTML:     '1. Drag a line to move it<br>2. Drag background to rotate view<br>3. Pinch / scroll to zoom<br>4. Find the right angle to clear<br><span style="color:var(--muted)">&#8635; reset level &nbsp;&#183;&nbsp; &#9678; reset view &nbsp;&#183;&nbsp; &#8630; undo &nbsp;&#183;&nbsp; ` debug</span>',
+      helpHTML:     '1. Drag a line to move it<br>2. Drag background to rotate view<br>3. Pinch / scroll to zoom<br>4. Find the right angle to clear<br><span style="color:var(--muted)">' + ICO_RESET + ' reset level &nbsp;&middot;&nbsp; ' + ICO_VIEW + ' reset view &nbsp;&middot;&nbsp; ' + ICO_UNDO + ' undo</span>',
     }
   };
 
@@ -976,6 +989,42 @@ min-width:260px;
   });
 
   updateLang();
+
+  // ── Block button interaction during mode-transition animations ──
+  // When body's mode-* class changes (home / levels / game), the UI plays
+  // staggered fade/slide animations. During that window, buttons should not
+  // respond to clicks even though pointer-events may already be 'auto'.
+  (function(){
+    function getMode(){
+      var m = document.body.className.match(/\bmode-(home|levels|game)\b/);
+      return m ? m[1] : null;
+    }
+    // Longest visible animation per destination mode (ms), with a small buffer.
+    function transitionDurationFor(toMode){
+      if (toMode === 'levels') return 4100; // title/arrows fade-in delay 3s + 1s
+      if (toMode === 'home')   return 3000; // home reveal 1.8s delay + 1s
+      if (toMode === 'game')   return 1700; // canvas/UI 0.5s delay + 1s
+      return 3000;
+    }
+    var lastMode = getMode();
+    var lockTimer = null;
+    function lockFor(ms){
+      document.body.classList.add('mode-transitioning');
+      if (lockTimer) clearTimeout(lockTimer);
+      lockTimer = setTimeout(function(){
+        document.body.classList.remove('mode-transitioning');
+        lockTimer = null;
+      }, ms);
+    }
+    var modeMo = new MutationObserver(function(){
+      var cur = getMode();
+      if (cur === lastMode) return;
+      var prev = lastMode;
+      lastMode = cur;
+      if (prev !== null && cur !== null) lockFor(transitionDurationFor(cur));
+    });
+    modeMo.observe(document.body, { attributes:true, attributeFilter:['class'] });
+  })();
 
   // ── Reveal UI once main.js has booted (body got a mode-* class) ──
   // We wait two extra frames so the screen-home/levels overlay can paint

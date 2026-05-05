@@ -1292,19 +1292,34 @@ export function initGame() {
     document.body.classList.add('page-swapping');
     const leaveCls = dir === 'right' ? 'leaving-right' : 'leaving-left';
     const enterCls = dir === 'right' ? 'entering-right' : 'entering-left';
-    const oldTiles = Array.from(grid.children);
-    oldTiles.forEach(t => t.classList.add(leaveCls));
+    const COLS = 5;
+    const LAST_COL = COLS - 1;
+    const LEAVE_STAGGER = 60;
+    const ENTER_STAGGER = 60;
+    const LEAVE_DURATION = 180;
+    const ENTER_DURATION = 350;
+    const colDelayUnits = (i) => dir === 'right' ? (i % COLS) : (LAST_COL - (i % COLS));
+    const oldTiles = Array.from(grid.querySelectorAll('.level-tile'));
+    oldTiles.forEach((t, i) => {
+      t.style.transitionDelay = `${colDelayUnits(i) * LEAVE_STAGGER}ms`;
+      t.classList.add(leaveCls);
+    });
+    const leaveTotal = LEAVE_DURATION + LEAVE_STAGGER * LAST_COL;
+    const enterTotal = ENTER_DURATION + ENTER_STAGGER * LAST_COL;
     setTimeout(() => {
       levelPage = newPage;
       buildLevelTiles();
-      const newTiles = Array.from(grid.children);
-      // CSS keyframe animation runs deterministically once the class is added.
-      // Remove the class after the 0.55s animation finishes so subsequent
-      // renders aren't stuck in the keyframe's final-frame fill.
-      newTiles.forEach(t => t.classList.add(enterCls));
+      const newTiles = Array.from(grid.querySelectorAll('.level-tile'));
+      newTiles.forEach((t, i) => {
+        t.style.animationDelay = `${colDelayUnits(i) * ENTER_STAGGER}ms`;
+        t.classList.add(enterCls);
+      });
       setTimeout(() => {
-        newTiles.forEach(t => t.classList.remove(enterCls));
-      }, 580);
+        newTiles.forEach(t => {
+          t.classList.remove(enterCls);
+          t.style.animationDelay = '';
+        });
+      }, enterTotal + 50);
       setTimeout(() => {
         pageSwapAnimating = false;
         document.body.classList.remove('page-swapping');
@@ -1316,8 +1331,8 @@ export function initGame() {
         };
         window.addEventListener('mousemove', clearCooldown);
         window.addEventListener('pointermove', clearCooldown);
-      }, 550);
-    }, 550);
+      }, enterTotal);
+    }, leaveTotal);
   }
 
   document.getElementById('prev-page').addEventListener('click', () => {
@@ -1513,9 +1528,10 @@ export function initGame() {
     if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '0')) {
       e.preventDefault();
     }
-    if (e.key === '`' && document.body.classList.contains('mode-game')) {
-      document.getElementById('debug-wrap').classList.toggle('visible');
-    }
+    // Debug toggle disabled for release.
+    // if (e.key === '`' && document.body.classList.contains('mode-game')) {
+    //   document.getElementById('debug-wrap').classList.toggle('visible');
+    // }
   });
 
   // Scroll wheel on the canvas zooms the Three.js camera only, not the HTML UI
