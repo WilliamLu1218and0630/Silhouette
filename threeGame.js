@@ -36,7 +36,7 @@ export function initGame() {
   // ── Rod colours ─────────────────────────────────────────────────────────────
   const COL_IDLE  = new THREE.Color(0x1a1a2e); // default rod colour
   const COL_HOVER = new THREE.Color(0x4a4a6e); // hover affordance (lighter than idle)
-  const COL_DRAG  = new THREE.Color(0xe94560); // active-drag / level-clear flash colour
+  const COL_CLEAR = new THREE.Color(0xf2c14e); // level-clear gold
 
   // ── Victory detection (geometric segment coverage) ─────────────────────────
   // Compares projected rod segments to goal segments directly, in world units,
@@ -61,7 +61,9 @@ export function initGame() {
   const SNAP_BUFFER       = 0.32; // |delta| within this fraction of a cell → full snap (容錯緩衝)
   const SNAP_RANGE_END    = 0.5;  // beyond this fraction the rod follows the cursor 1:1
   const SNAP_VIBRATE_MS   = 8;    // duration (ms) for tiny haptic blip when snapping to a new cell
-  const EDGE_OVERSHOOT_MAX = 0.35; // max cells the rod can rubber-band past the grid edge
+  const EDGE_OVERSHOOT_MAX = 0.15; // max cells the rod can rubber-band past the grid edge
+  const OOB_CANCEL_PAD     = 2.0;  // raw cursor cells past the edge before the drag is auto-cancelled
+                                   // (rod springs back to its pre-drag position; user must re-grab)
 
   // ── Progress persistence ─────────────────────────────────────────────────────
   const STORAGE_KEY = 'silhouette-progress'; // localStorage key
@@ -350,6 +352,8 @@ export function initGame() {
       color: COL_IDLE.clone(),
       roughness: 0.35,
       metalness: 0.08,
+      transparent: true,
+      opacity: 1,
     });
 
     const segMeshes = [], hitMeshes = [], jointMeshes = [];
@@ -746,16 +750,57 @@ export function initGame() {
   function triggerClear() {
     completedLevels.add(currentLevel);
     saveProgress();
-    rods.forEach(r => {
+    rods.forEach((r) => {
+      r.cleared = true;
       r.allMeshes.forEach(m => {
         gsap.killTweensOf(m.material.color);
-        gsap.killTweensOf(m.position);
-        gsap.to(m.material.color, { r: COL_DRAG.r, g: COL_DRAG.g, b: COL_DRAG.b, duration: 0.25, yoyo: true, repeat: 3 });
-        const currentY = m.position.y;
-        gsap.to(m.position, { y: currentY + 0.38, duration: 0.28, yoyo: true, repeat: 1, ease: 'power2.out' });
+        gsap.to(m.material.color, {
+          r: COL_CLEAR.r, g: COL_CLEAR.g, b: COL_CLEAR.b,
+          duration: 0.55, ease: 'sine.out',
+        });
+        // Emissive glow — bypasses lighting so the gold actually reads as gold.
+        if (m.material.emissive) {
+          gsap.killTweensOf(m.material.emissive);
+          gsap.to(m.material.emissive, {
+            r: COL_CLEAR.r, g: COL_CLEAR.g, b: COL_CLEAR.b,
+            duration: 0.55, ease: 'sine.out',
+          });
+        }
+      });
+      // Segments: thicken only (X/Z); joints: uniform expand. Stays thick — no yoyo.
+      r.segMeshes.forEach(m => {
+        gsap.killTweensOf(m.scale);
+        gsap.to(m.scale, {
+          x: 1.6, z: 1.6,
+          duration: 0.4, ease: 'back.out(2)',
+        });
+      });
+      r.jointMeshes.forEach(m => {
+        gsap.killTweensOf(m.scale);
+        gsap.to(m.scale, {
+          x: 1.6, y: 1.6, z: 1.6,
+          duration: 0.4, ease: 'back.out(2)',
+        });
       });
     });
-    clearTimer = setTimeout(() => { clearTimer = null; showOverlay('clear-overlay'); }, 950);
+    const PULSE_MS = 1100;
+    const FADE_MS  = 1000;
+    setTimeout(() => {
+      rods.forEach((r) => {
+        [...r.segMeshes, ...r.jointMeshes].forEach(m => {
+          const mat = m.material;
+          gsap.killTweensOf(mat);
+          mat.transparent = true;
+          gsap.to(mat, {
+            opacity: 0,
+            duration: FADE_MS / 1000,
+            ease: 'sine.out',
+          });
+        });
+      });
+    }, PULSE_MS);
+    const totalMs = PULSE_MS + FADE_MS + 150;
+    clearTimer = setTimeout(() => { clearTimer = null; showOverlay('clear-overlay'); }, totalMs);
   }
 
   const raycaster = new THREE.Raycaster();
@@ -770,21 +815,35 @@ export function initGame() {
     { normal: new THREE.Vector3(0, 0, 1), rx: 0,            ry: 0 },           // XY plane
   ];
 
-  const dragIndicator = new THREE.Mesh(
-    new THREE.PlaneGeometry(6 * CELL, 6 * CELL),
-    new THREE.MeshBasicMaterial({
-      color: 0x3399ff, transparent: true, opacity: 0.05,
-      side: THREE.DoubleSide, depthWrite: false,
-    })
-  );
+  // The drag indicator is just a transform carrier — rotated/positioned to the
+  // active drag plane — that holds the dot grid and ground-line overlays. No
+  // visible plane mesh; the dots and line alone convey the plane's orientation.
+  // depthTest:false on the overlays keeps them readable through the rod.
+  const dragIndicator = new THREE.Group();
   dragIndicator.visible = false;
   scene.add(dragIndicator);
 
-  // Float grid dots shown on the active drag plane during a rod drag
   const _floatDotGeo = new THREE.SphereGeometry(0.015, 6, 6);
-  const _floatDotMat = new THREE.MeshBasicMaterial({ color: 0x3399ff, transparent: true, opacity: 0.65 });
+  const _floatDotMat = new THREE.MeshBasicMaterial({ color: 0x404040, transparent: true, opacity: 0.9, depthTest: false });
   const floatGrid    = new THREE.Group();
   dragIndicator.add(floatGrid);
+
+  // Ground line marks where a vertical drag plane crosses y=0, so the player
+  // can read the rod's height against the floor. Geometry + tick marks are
+  // rebuilt per drag start (sized to the active gridSize).
+  const _groundLineMat = new THREE.LineDashedMaterial({
+    color: 0x606060, transparent: true, opacity: 0.85,
+    dashSize: CELL * 0.18, gapSize: CELL * 0.12,
+    depthTest: false,
+  });
+  const _groundTickMat = new THREE.LineBasicMaterial({
+    color: 0x606060, transparent: true, opacity: 1.0, depthTest: false,
+  });
+  const _groundTickHalf = CELL * 0.09;
+  const groundLine = new THREE.Line(new THREE.BufferGeometry(), _groundLineMat);
+  groundLine.visible = false;
+  groundLine.renderOrder = 1;
+  dragIndicator.add(groundLine);
 
   let dragMode     = null;
   let dragRod      = null;
@@ -819,6 +878,47 @@ export function initGame() {
     lastSnapKey  = null;
     dragOffset.set(0, 0, 0);
     dragIndicator.visible = false;
+  }
+
+  // Commit the in-progress rod drag to the nearest legal grid point — same as
+  // releasing the pointer normally (rounds dragOffset, clamps to bounds, mutates
+  // rod.path if non-zero, pushes an undo snapshot, tweens meshes to the new
+  // grid-anchored positions). Shared by onUp and cancelDrag so an auto-cancel
+  // settles the rod the same way a manual release does.
+  function commitRodDrag() {
+    if (dragMode !== 'rod' || !dragRod) return;
+    let dgx = Math.round(dragOffset.x / CELL);
+    let dgy = Math.round(dragOffset.y / CELL);
+    let dgz = Math.round(dragOffset.z / CELL);
+    if      (dragPlaneIdx === 0) dgx = 0;
+    else if (dragPlaneIdx === 1) dgy = 0;
+    else if (dragPlaneIdx === 2) dgz = 0;
+    let minDgx = -Infinity, maxDgx = Infinity, minDgz = -Infinity, maxDgz = Infinity;
+    for (const [gx, , gz] of dragRod.path) {
+      minDgx = Math.max(minDgx, -gx);
+      maxDgx = Math.min(maxDgx, gridSize - 1 - gx);
+      minDgz = Math.max(minDgz, -gz);
+      maxDgz = Math.min(maxDgz, gridSize - 1 - gz);
+    }
+    dgx = clamp(dgx, minDgx, maxDgx);
+    dgz = clamp(dgz, minDgz, maxDgz);
+    if (dgx !== 0 || dgy !== 0 || dgz !== 0) {
+      if (pendingPreDragSnap) pushUndoSnapshot(pendingPreDragSnap);
+      dragRod.path = dragRod.path.map(([gx, gy, gz]) => [gx + dgx, gy + dgy, gz + dgz]);
+    }
+    pendingPreDragSnap = null;
+    updateRodMeshPositions(dragRod, true, 0.20);
+    const rod = dragRod;
+    setTimeout(() => { highlightRod(rod, false); checkVictory(); }, 220);
+  }
+
+  // Auto-release used when the cursor wanders too far past the legal bounds.
+  // Settles the rod onto the nearest legal grid point (NOT the pre-drag spot)
+  // so the partial drag isn't lost — the player just has to re-grab to keep
+  // moving.
+  function cancelDrag() {
+    commitRodDrag();
+    resetDragState();
   }
 
   // Asymptotic rubber-band: as x grows, output approaches EDGE_OVERSHOOT_MAX with
@@ -1050,12 +1150,39 @@ export function initGame() {
 
   function highlightRod(rod, state) {
     // state: false/'idle' | 'hover' | true/'drag'
-    let c;
+    if (rod.cleared) return;
+    let c, dur = 0.14;
     if (state === 'hover')                       c = COL_HOVER;
-    else if (state === true || state === 'drag') c = COL_DRAG;
+    else if (state === true || state === 'drag') c = COL_HOVER;
     else                                         c = COL_IDLE;
+    const targetScale = 1;
+    const scaleDur    = 0.22;
+    const scaleEase   = 'power2.out';
     for (const m of rod.allMeshes) {
-      gsap.to(m.material.color, { r: c.r, g: c.g, b: c.b, duration: 0.14 });
+      // Kill any in-flight color tween on this material so rapid in/out boundary
+      // crossings don't leave a stale tween fighting the new target colour.
+      gsap.killTweensOf(m.material.color);
+      gsap.to(m.material.color, {
+        r: c.r, g: c.g, b: c.b,
+        duration: dur, overwrite: true,
+      });
+    }
+    // Segments are CylinderGeometry whose local Y axis runs along the rod (set by
+    // orientMeshAlongDir). Scale only X/Z so the rod gets THICKER without getting
+    // LONGER. Joint spheres scale uniformly — they look natural either way.
+    for (const m of rod.segMeshes) {
+      gsap.killTweensOf(m.scale);
+      gsap.to(m.scale, {
+        x: targetScale, z: targetScale,
+        duration: scaleDur, ease: scaleEase, overwrite: true,
+      });
+    }
+    for (const m of rod.jointMeshes) {
+      gsap.killTweensOf(m.scale);
+      gsap.to(m.scale, {
+        x: targetScale, y: targetScale, z: targetScale,
+        duration: scaleDur, ease: scaleEase, overwrite: true,
+      });
     }
   }
 
@@ -1160,19 +1287,88 @@ export function initGame() {
         } else {
           dragAnchor.copy(p0);
         }
+        // Place the visual indicator at the rod node farthest from the camera
+        // so the dot backdrop sits behind the rod instead of coplanar with it
+        // (otherwise the rod looks embedded in the grid). The math dragPlane
+        // still passes through p0, so cursor → world projection is unaffected.
+        let indicatorPos = nodeToWorld(dragRod.path[0]);
+        let maxDistSq = indicatorPos.distanceToSquared(camera.position);
+        for (let i = 1; i < dragRod.path.length; i++) {
+          const w = nodeToWorld(dragRod.path[i]);
+          const d = w.distanceToSquared(camera.position);
+          if (d > maxDistSq) { maxDistSq = d; indicatorPos = w; }
+        }
         dragIndicator.rotation.set(bestOpt.rx, bestOpt.ry, 0);
-        dragIndicator.position.copy(p0);
+        dragIndicator.position.copy(indicatorPos);
         dragIndicator.visible = true;
 
+        // Build the dot grid + ground line to span the active level grid.
+        // X and Z always stay within world bounds [-off*CELL, +off*CELL]; the
+        // unbounded Y axis (vertical planes only) spans the same gridSize range
+        // so the backdrop reads as a uniform level-sized panel.
+        const off = (gridSize - 1) / 2;
+
         floatGrid.clear();
-        for (let i = 0; i < 5; i++) {
-          for (let j = 0; j < 5; j++) {
-            const dot = new THREE.Mesh(_floatDotGeo, _floatDotMat.clone());
-            if      (bestIdx === 1) dot.position.set( (i - 2) * CELL, -(j - 2) * CELL, 0); // XZ horizontal
-            else if (bestIdx === 2) dot.position.set( (i - 2) * CELL,  (j - 2) * CELL, 0); // XY vertical
-            else                   dot.position.set(-(j - 2) * CELL,  (i - 2) * CELL, 0); // YZ vertical
+        for (let a = 0; a < gridSize; a++) {
+          for (let b = 0; b < gridSize; b++) {
+            const dot = new THREE.Mesh(_floatDotGeo, _floatDotMat);
+            if (bestIdx === 1) {
+              // XZ horizontal: a → world X cell, b → world Z cell
+              const wx = (a - off) * CELL;
+              const wz = (b - off) * CELL;
+              dot.position.set(wx - indicatorPos.x, -(wz - indicatorPos.z), 0);
+            } else if (bestIdx === 2) {
+              // XY vertical: a → world X cell, b → world Y cell (gy in [0, gridSize-1])
+              const wx = (a - off) * CELL;
+              const wy = b * CELL + ROD_Y;
+              dot.position.set(wx - indicatorPos.x, wy - indicatorPos.y, 0);
+            } else {
+              // YZ vertical: a → world Z cell, b → world Y cell
+              const wz = (a - off) * CELL;
+              const wy = b * CELL + ROD_Y;
+              dot.position.set(-(wz - indicatorPos.z), wy - indicatorPos.y, 0);
+            }
             floatGrid.add(dot);
           }
+        }
+
+        // Ground line: rebuild geometry + ticks per drag start so they span the
+        // active grid extent along the in-plane horizontal world axis (X for
+        // the XY plane, Z for the YZ plane). Hidden on the XZ horizontal plane
+        // and when y=0 falls outside the dot grid's Y span.
+        for (const child of groundLine.children) child.geometry.dispose();
+        groundLine.clear();
+        groundLine.geometry.dispose();
+        const yMaxWorld = (gridSize - 1) * CELL + ROD_Y;
+        if (bestIdx === 1 || indicatorPos.y < ROD_Y || indicatorPos.y > yMaxWorld) {
+          groundLine.visible = false;
+          groundLine.geometry = new THREE.BufferGeometry();
+        } else {
+          let lineMinLX, lineMaxLX;
+          const tickXs = [];
+          if (bestIdx === 2) {
+            lineMinLX = -off * CELL - indicatorPos.x;
+            lineMaxLX =  off * CELL - indicatorPos.x;
+            for (let k = 0; k < gridSize; k++) tickXs.push((k - off) * CELL - indicatorPos.x);
+          } else {
+            lineMinLX = indicatorPos.z - off * CELL;
+            lineMaxLX = indicatorPos.z + off * CELL;
+            for (let k = 0; k < gridSize; k++) tickXs.push(indicatorPos.z - (k - off) * CELL);
+          }
+          groundLine.geometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(lineMinLX, 0, 0),
+            new THREE.Vector3(lineMaxLX, 0, 0),
+          ]);
+          groundLine.computeLineDistances();
+          for (const tx of tickXs) {
+            const tickGeo = new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(tx, -_groundTickHalf, 0),
+              new THREE.Vector3(tx,  _groundTickHalf, 0),
+            ]);
+            groundLine.add(new THREE.Line(tickGeo, _groundTickMat));
+          }
+          groundLine.position.y = -indicatorPos.y;
+          groundLine.visible = true;
         }
       }
     }
@@ -1197,6 +1393,25 @@ export function initGame() {
         const visY = (dragPlaneIdx === 1) ? 0 : magnetize(rawDy) * CELL;
         const visZ = (dragPlaneIdx === 2) ? 0 : (ez.inside ? magnetize(ez.value) : ez.value) * CELL;
         setRodVisualOffset(dragRod, visX, visY, visZ);
+
+        // Flash red only after the cursor has dragged a meaningful distance past
+        // the legal x/z bounds — small accidental overshoots stay silent so the
+        // user doesn't get a red flash from grazing the edge.
+        const rawDx = dragOffset.x / CELL;
+        const rawDz = dragOffset.z / CELL;
+        const overshootX = (dragPlaneIdx !== 0)
+          ? Math.max(0, rawDx - dragMaxDgx, dragMinDgx - rawDx)
+          : 0;
+        const overshootZ = (dragPlaneIdx !== 2)
+          ? Math.max(0, rawDz - dragMaxDgz, dragMinDgz - rawDz)
+          : 0;
+        // Drag past CANCEL pad → auto-release the rod. Snaps back to its pre-drag
+        // position; the player has to grab it again. Cheaper than letting the
+        // rubber-band stretch indefinitely and clearer than no feedback.
+        if (overshootX > OOB_CANCEL_PAD || overshootZ > OOB_CANCEL_PAD) {
+          cancelDrag();
+          return;
+        }
 
         // Haptic pulse when the rod magnetises onto a new integer cell.
         const sx = Math.round(ex.value), sy = Math.round(rawDy), sz = Math.round(ez.value);
@@ -1225,33 +1440,7 @@ export function initGame() {
 
   function onUp(cx, cy) {
     if (dragMode === 'rod' && dragRod) {
-      // Snap the accumulated drag offset to the nearest grid step and tween there.
-      let dgx = Math.round(dragOffset.x / CELL);
-      let dgy = Math.round(dragOffset.y / CELL);
-      let dgz = Math.round(dragOffset.z / CELL);
-      if      (dragPlaneIdx === 0) dgx = 0;
-      else if (dragPlaneIdx === 1) dgy = 0;
-      else if (dragPlaneIdx === 2) dgz = 0;
-      // Clamp delta so no node leaves the x/z grid bounds (gy unconstrained).
-      let minDgx = -Infinity, maxDgx = Infinity, minDgz = -Infinity, maxDgz = Infinity;
-      for (const [gx, , gz] of dragRod.path) {
-        minDgx = Math.max(minDgx, -gx);
-        maxDgx = Math.min(maxDgx, gridSize - 1 - gx);
-        minDgz = Math.max(minDgz, -gz);
-        maxDgz = Math.min(maxDgz, gridSize - 1 - gz);
-      }
-      dgx = clamp(dgx, minDgx, maxDgx);
-      dgz = clamp(dgz, minDgz, maxDgz);
-      if (dgx !== 0 || dgy !== 0 || dgz !== 0) {
-        if (pendingPreDragSnap) pushUndoSnapshot(pendingPreDragSnap);
-        dragRod.path = dragRod.path.map(([gx, gy, gz]) => [gx + dgx, gy + dgy, gz + dgz]);
-      }
-      pendingPreDragSnap = null;
-      // gsap reads the meshes' current (offset) positions as the tween's "from",
-      // so this animates the rubber-band back to the snapped grid point.
-      updateRodMeshPositions(dragRod, true, 0.20);
-      const rod = dragRod;
-      setTimeout(() => { highlightRod(rod, false); checkVictory(); }, 220);
+      commitRodDrag();
     } else if (dragMode === 'cam') {
       // Defer victory check to avoid false triggers from the pointer-up event itself
       checkVictory();
